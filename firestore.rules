@@ -1,0 +1,169 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: uid, email, displayName, role, branchId, createdAt
+    //
+    // Collection: vehicles
+    // Fields: id, make, model, year, plate, type, transmission, status, branchId, dailyRate, lastService, photoUrls
+    //
+    // Collection: reservations
+    // Fields: id, customerId, vehicleId, pickupDate, dropoffDate, pickupBranchId, dropoffBranchId, status, totalPrice, notes
+    //
+    // Collection: customers
+    // Fields: id, name, email, phone, licenseNumber, notes, loyaltyPoints
+    //
+    // Collection: tasks
+    // Fields: id, title, description, assignedTo, status, dueDate, relatedId
+    //
+    // Collection: branches
+    // Fields: id, name, address, city, coordinates
+    //
+    // Collection: maintenance
+    // Fields: id, vehicleId, type, description, cost, date, nextServiceDue
+    //
+    // Collection: damage_reports
+    // Fields: id, reservationId, vehicleId, description, severity, estimatedRepairCost, photoUrls, aiAssessment, createdAt
+    //
+    // Collection: pricing_rules
+    // Fields: id, name, vehicleType, multiplier, startDate, endDate, isActive
+    //
+    // Collection: contracts
+    // Fields: id, reservationId, customerId, status, signedAt, documentUrl
+    //
+    // Collection: inspections
+    // Fields: id, taskId, vehicleId, inspectorId, type, tirePressure, fluidLevels, interiorCleanliness, existingDamage, createdAt
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "kostasfoskolakis19@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isManager() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
+
+    function isStaff() {
+      return isAuthenticated() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'manager', 'staff']);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'branchId', 'createdAt']) &&
+             data.uid is string && data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'manager', 'staff', 'driver'];
+    }
+
+    function isValidVehicle(data) {
+      return hasOnlyAllowedFields(['id', 'make', 'model', 'year', 'plate', 'type', 'transmission', 'status', 'branchId', 'dailyRate', 'lastService', 'photoUrls']) &&
+             data.make is string && data.model is string && data.status in ['available', 'rented', 'maintenance', 'incident'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection: PII protection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaff();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isAdmin() || (isOwner(userId) && request.resource.data.role == 'driver'));
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
+    }
+
+    // Vehicles: Publicly readable for customers, but writable only by staff
+    match /vehicles/{vehicleId} {
+      allow read: if isAuthenticated();
+      allow write: if isStaff() && isValidVehicle(request.resource.data);
+    }
+
+    // Reservations: Owner or Staff can read/write
+    match /reservations/{resId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
+      allow create: if isAuthenticated() && 
+                    hasRequiredFields(['customerId', 'vehicleId', 'pickupDate', 'dropoffDate', 'status']) &&
+                    request.resource.data.customerId == request.auth.uid;
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
+      allow delete: if isAdmin();
+    }
+
+    // Customers: CRM data is sensitive, only staff can access
+    match /customers/{customerId} {
+      allow read, write: if isStaff();
+    }
+
+    // Tasks: Assigned user or staff can access
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.assignedTo || isStaff());
+      allow write: if isStaff();
+    }
+
+    // Branches: Public info
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Maintenance: Only staff can read/write
+    match /maintenance/{recordId} {
+      allow read, write: if isStaff();
+    }
+
+    // Damage Reports: Staff can read/write, customers can read their own
+    match /damage_reports/{reportId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
+      allow write: if isStaff();
+    }
+
+    // Pricing Rules: Only admins can manage
+    match /pricing_rules/{ruleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Contracts: Owner or Staff can read, only staff can write
+    match /contracts/{contractId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
+      allow write: if isStaff();
+    }
+
+    // Inspections: Only staff can read/write
+    match /inspections/{inspectionId} {
+      allow read, write: if isStaff();
+    }
+  }
+}

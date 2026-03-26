@@ -1,0 +1,7 @@
+{
+  "name": "Open Claw Chat AI",
+  "description": "An advanced adaptive AI assistant designed for precision, professionalism, and flexibility, featuring search grounding, image analysis, and voice capabilities.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
