@@ -1,0 +1,194 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and roles.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "staff", "driver"] },
+        "branchId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Fleet inventory item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "integer" },
+        "plate": { "type": "string" },
+        "type": { "type": "string", "enum": ["sedan", "suv", "truck", "luxury", "convertible"] },
+        "transmission": { "type": "string", "enum": ["automatic", "manual"] },
+        "status": { "type": "string", "enum": ["available", "rented", "maintenance", "incident"] },
+        "branchId": { "type": "string" },
+        "dailyRate": { "type": "number" },
+        "lastService": { "type": "string", "format": "date" },
+        "photoUrls": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["make", "model", "plate", "status"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Booking record for a vehicle.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "pickupDate": { "type": "string", "format": "date-time" },
+        "dropoffDate": { "type": "string", "format": "date-time" },
+        "pickupBranchId": { "type": "string" },
+        "dropoffBranchId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "active", "completed", "cancelled"] },
+        "totalPrice": { "type": "number" },
+        "notes": { "type": "string" },
+        "customerName": { "type": "string", "description": "Denormalized customer name for display" },
+        "vehicleName": { "type": "string", "description": "Denormalized vehicle name for display" }
+      },
+      "required": ["customerId", "vehicleId", "pickupDate", "dropoffDate", "status"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "CRM record for a client.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "licenseNumber": { "type": "string" },
+        "notes": { "type": "string" },
+        "loyaltyPoints": { "type": "integer" },
+        "loyaltyTier": { "type": "string", "enum": ["Bronze", "Silver", "Gold", "Platinum"] }
+      },
+      "required": ["name", "email"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Operational task for staff or drivers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "status": { "type": "string", "enum": ["todo", "in-progress", "done"] },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "relatedId": { "type": "string" }
+      },
+      "required": ["title", "status"]
+    },
+    "MaintenanceRecord": {
+      "title": "Maintenance Record",
+      "description": "Service history for a vehicle.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "type": { "type": "string", "enum": ["routine", "repair", "inspection", "cleaning"] },
+        "description": { "type": "string" },
+        "cost": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "nextServiceDue": { "type": "string", "format": "date" }
+      },
+      "required": ["vehicleId", "type", "date"]
+    },
+    "DamageReport": {
+      "title": "Damage Report",
+      "description": "Record of vehicle damage with AI assessment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reservationId": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "description": { "type": "string" },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "estimatedRepairCost": { "type": "number" },
+        "photoUrls": { "type": "array", "items": { "type": "string" } },
+        "aiAssessment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vehicleId", "severity", "createdAt"]
+    },
+    "PricingRule": {
+      "title": "Pricing Rule",
+      "description": "Dynamic pricing configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "vehicleType": { "type": "string" },
+        "multiplier": { "type": "number" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["name", "multiplier", "isActive"]
+    },
+    "Contract": {
+      "title": "Contract",
+      "description": "Legal rental agreement.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reservationId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "signed", "expired", "terminated"] },
+        "signedAt": { "type": "string", "format": "date-time" },
+        "documentUrl": { "type": "string" }
+      },
+      "required": ["reservationId", "customerId", "status"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Rental location.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "coordinates": { "type": "object" }
+      },
+      "required": ["name", "address"]
+    },
+    "Inspection": {
+      "title": "Vehicle Inspection",
+      "description": "Pre/Post rental vehicle checklist.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "inspectorId": { "type": "string" },
+        "type": { "type": "string", "enum": ["pre-rental", "post-rental"] },
+        "tirePressure": { "type": "string" },
+        "fluidLevels": { "type": "string" },
+        "interiorCleanliness": { "type": "string" },
+        "existingDamage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vehicleId", "inspectorId", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users": { "schema": "User", "description": "User profiles and roles." },
+    "vehicles": { "schema": "Vehicle", "description": "Fleet inventory." },
+    "reservations": { "schema": "Reservation", "description": "Booking records." },
+    "customers": { "schema": "Customer", "description": "CRM data." },
+    "tasks": { "schema": "Task", "description": "Operational tasks." },
+    "branches": { "schema": "Branch", "description": "Location management." },
+    "maintenance": { "schema": "MaintenanceRecord", "description": "Vehicle service history." },
+    "damage_reports": { "schema": "DamageReport", "description": "Vehicle damage assessments." },
+    "pricing_rules": { "schema": "PricingRule", "description": "Dynamic pricing rules." },
+    "contracts": { "schema": "Contract", "description": "Rental agreements." },
+    "inspections": { "schema": "Inspection", "description": "Vehicle inspection records." }
+  }
+}
