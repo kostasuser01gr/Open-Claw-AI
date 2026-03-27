@@ -53,7 +53,10 @@ import {
   BarChart,
   Bar,
   AreaChart,
-  Area
+  Area,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -129,6 +132,167 @@ function NavButton({ active, onClick, icon, label }: { active: boolean, onClick:
 }
 
 type ViewMode = 'chat' | 'fleet' | 'reservations' | 'crm' | 'ops' | 'kpi' | 'maintenance' | 'damage' | 'pricing' | 'contracts' | 'corporate';
+
+const COLORS = ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#EAB308'];
+
+function DataCanvas({ activeFile, updateFileContent }: { activeFile: ProjectFile, updateFileContent: (id: string, content: string) => void }) {
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'pie'>(() => {
+    try {
+      const parsed = JSON.parse(activeFile.content);
+      if (parsed.chartType && ['line', 'bar', 'pie'].includes(parsed.chartType)) {
+        return parsed.chartType;
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return 'line';
+  });
+
+  let data = [];
+  try {
+    data = JSON.parse(activeFile.content).data || [];
+  } catch {
+    // Ignore parse errors
+  }
+
+  const renderChart = () => {
+    if (data.length === 0) return <div className="flex items-center justify-center h-full text-text-muted">No data available</div>;
+
+    switch (chartType) {
+      case 'bar':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
+              <XAxis dataKey="name" stroke="#71717A" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="#71717A" fontSize={12} tickLine={false} axisLine={false} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'var(--surface)', 
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  color: 'var(--text)'
+                }}
+              />
+              <Legend />
+              <Bar dataKey="value" fill="#F97316" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      case 'pie':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                outerRadius={150}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                {data.map((_entry: Record<string, unknown>, index: number) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'var(--surface)', 
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  color: 'var(--text)'
+                }}
+              />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      case 'line':
+      default:
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ReLineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
+              <XAxis dataKey="name" stroke="#71717A" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="#71717A" fontSize={12} tickLine={false} axisLine={false} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'var(--surface)', 
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  color: 'var(--text)'
+                }}
+              />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="value" 
+                stroke="#F97316" 
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#F97316', strokeWidth: 2, stroke: 'var(--bg)' }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+              />
+            </ReLineChart>
+          </ResponsiveContainer>
+        );
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="bg-surface p-8 rounded-[32px] border border-border shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold">Data Visualization</h3>
+          <div className="flex bg-bg rounded-lg p-1 border border-border">
+            <button
+              onClick={() => setChartType('line')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                chartType === 'line' ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text"
+              )}
+            >
+              Line
+            </button>
+            <button
+              onClick={() => setChartType('bar')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                chartType === 'bar' ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text"
+              )}
+            >
+              Bar
+            </button>
+            <button
+              onClick={() => setChartType('pie')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                chartType === 'pie' ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text"
+              )}
+            >
+              Pie
+            </button>
+          </div>
+        </div>
+        <div className="h-[400px] w-full">
+          {renderChart()}
+        </div>
+      </div>
+      <div className="bg-surface p-6 rounded-2xl border border-border">
+        <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-4">Raw Data Source</p>
+        <textarea
+          value={activeFile.content}
+          onChange={(e) => updateFileContent(activeFile.id, e.target.value)}
+          className="w-full bg-transparent border-none focus:ring-0 p-0 font-mono text-xs text-text-muted resize-none h-32"
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -976,7 +1140,7 @@ export default function App() {
 
                   {msg.groundingMetadata?.groundingChunks && Array.isArray(msg.groundingMetadata.groundingChunks) && (
                     <div className="flex flex-wrap gap-2 mt-1">
-                      {msg.groundingMetadata.groundingChunks.map((chunk: Record<string, any>, ci: number) => (
+                      {msg.groundingMetadata.groundingChunks.map((chunk: { web?: { uri: string; title: string }; maps?: { uri: string; title: string } }, ci: number) => (
                         <React.Fragment key={ci}>
                           {chunk.web && (
                             <a 
@@ -1096,6 +1260,7 @@ export default function App() {
               <button
                 onClick={handleSend}
                 disabled={isLoading || (!input.trim() && !selectedImage)}
+                aria-label="Send message"
                 className={cn(
                   "p-3.5 rounded-2xl transition-all shadow-lg active:scale-95",
                   isLoading || (!input.trim() && !selectedImage)
@@ -1259,52 +1424,13 @@ export default function App() {
               )}
 
               {activeFile.type === 'data' && (
-                <div className="max-w-4xl mx-auto space-y-6">
-                  <div className="bg-surface p-8 rounded-[32px] border border-border shadow-2xl">
-                    <h3 className="text-lg font-semibold mb-6">Data Visualization</h3>
-                    <div className="h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ReLineChart data={JSON.parse(activeFile.content).data}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
-                          <XAxis dataKey="name" stroke="#71717A" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="#71717A" fontSize={12} tickLine={false} axisLine={false} />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'var(--surface)', 
-                              border: '1px solid var(--border)',
-                              borderRadius: '12px',
-                              fontSize: '12px',
-                              color: 'var(--text)'
-                            }}
-                          />
-                          <Legend />
-                          <Line 
-                            type="monotone" 
-                            dataKey="value" 
-                            stroke="#F97316" 
-                            strokeWidth={3}
-                            dot={{ r: 4, fill: '#F97316', strokeWidth: 2, stroke: 'var(--bg)' }}
-                            activeDot={{ r: 6, strokeWidth: 0 }}
-                          />
-                        </ReLineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                  <div className="bg-surface p-6 rounded-2xl border border-border">
-                    <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-4">Raw Data Source</p>
-                    <textarea
-                      value={activeFile.content}
-                      onChange={(e) => updateFileContent(activeFile.id, e.target.value)}
-                      className="w-full bg-transparent border-none focus:ring-0 p-0 font-mono text-xs text-text-muted resize-none h-32"
-                    />
-                  </div>
-                </div>
+                <DataCanvas key={activeFile.id} activeFile={activeFile} updateFileContent={updateFileContent} />
               )}
 
               {activeFile.type === 'gallery' && (
                 <div className="max-w-6xl mx-auto space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {JSON.parse(activeFile.content).cars.map((car: Record<string, any>, idx: number) => (
+                    {JSON.parse(activeFile.content).cars.map((car: { name: string; type: string; transmission: string; price: number; images: string[] }, idx: number) => (
                       <motion.div
                         key={idx}
                         initial={{ opacity: 0, y: 20 }}
@@ -2016,6 +2142,14 @@ function OpsModule({ data }: { data: Record<string, unknown>[] }) {
     existingDamage: 'None'
   });
 
+  const handlePriorityChange = async (taskId: string, newPriority: string) => {
+    try {
+      await updateDoc(doc(db, 'tasks', taskId), { priority: newPriority });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'tasks');
+    }
+  };
+
   const handleSubmitInspection = async () => {
     if (!selectedTask) return;
     setIsSubmitting(true);
@@ -2156,7 +2290,8 @@ function OpsModule({ data }: { data: Record<string, unknown>[] }) {
               <div className="flex items-center gap-4">
                 <div className={cn(
                   "p-2 rounded-lg",
-                  t.priority === 'high' ? "bg-red-500/10 text-red-500" : "bg-blue-500/10 text-blue-500"
+                  t.priority === 'high' ? "bg-red-500/10 text-red-500" : 
+                  t.priority === 'medium' ? "bg-orange-500/10 text-orange-500" : "bg-blue-500/10 text-blue-500"
                 )}>
                   <ClipboardList className="w-4 h-4" />
                 </div>
@@ -2167,8 +2302,27 @@ function OpsModule({ data }: { data: Record<string, unknown>[] }) {
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase text-text-muted">Priority</p>
+                  <select
+                    value={t.priority as string || 'medium'}
+                    onChange={(e) => handlePriorityChange(t.id as string, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={t.status === 'completed'}
+                    className={cn(
+                      "bg-transparent text-xs font-bold focus:outline-none cursor-pointer appearance-none text-right",
+                      t.priority === 'high' ? "text-red-500" :
+                      t.priority === 'medium' ? "text-orange-500" : "text-blue-500",
+                      t.status === 'completed' && "opacity-60 cursor-default"
+                    )}
+                  >
+                    <option value="high" className="text-text bg-bg">High</option>
+                    <option value="medium" className="text-text bg-bg">Medium</option>
+                    <option value="low" className="text-text bg-bg">Low</option>
+                  </select>
+                </div>
+                <div className="text-right">
                   <p className="text-[10px] font-bold uppercase text-text-muted">Due Date</p>
-                  <p className="text-xs">{t.dueDate}</p>
+                  <p className="text-xs">{t.dueDate as string}</p>
                 </div>
                 <div className={cn(
                   "w-2 h-2 rounded-full",
