@@ -1,21 +1,28 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, getDocFromServer, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { getFirestore, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
+import { appEnv } from './config/env';
 
-// Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app, appEnv.functionsRegion);
 export const googleProvider = new GoogleAuthProvider();
 
-// Auth Helpers
+let functionsEmulatorConnected = false;
+
+if (typeof window !== 'undefined' && appEnv.useFunctionsEmulator && !functionsEmulatorConnected) {
+  connectFunctionsEmulator(functions, appEnv.functionsHost, appEnv.functionsPort);
+  functionsEmulatorConnected = true;
+}
+
 export const loginWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const logout = () => signOut(auth);
 
-// Error Handling Spec for Firestore Operations
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -25,58 +32,50 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-export interface FirestoreErrorInfo {
-  error: string;
+export interface AppError {
+  code?: string;
   operationType: OperationType;
   path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
+  userMessage: string;
+  debugMessage: string;
+}
+
+function getFirestoreUserMessage(code: string | undefined, operationType: OperationType): string {
+  switch (code) {
+    case 'permission-denied':
+      return 'You do not have permission to perform that action.';
+    case 'unavailable':
+      return 'The data service is temporarily unavailable. Please try again.';
+    case 'unauthenticated':
+      return 'Please sign in again to continue.';
+    default:
+      return `The ${operationType} request could not be completed.`;
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): AppError {
+  const debugMessage = error instanceof Error ? error.message : String(error);
+  const code =
+    error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : undefined;
+
+  const appError: AppError = {
+    code,
     operationType,
-    path
+    path,
+    userMessage: getFirestoreUserMessage(code, operationType),
+    debugMessage,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 
-// Connection Test
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
-    }
+  if (import.meta.env.DEV) {
+    console.error('Firestore error', {
+      ...appError,
+      uid: auth.currentUser?.uid,
+    });
   }
+
+  return appError;
 }
-testConnection();
 
 export { serverTimestamp, Timestamp, ref, uploadBytes, getDownloadURL };

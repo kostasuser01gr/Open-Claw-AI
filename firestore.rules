@@ -53,8 +53,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "kostasfoskolakis19@gmail.com" && request.auth.token.email_verified == true));
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isManager() {
@@ -77,18 +76,110 @@ service cloud.firestore {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    function isOptionalString(value) {
+      return value == null || value is string;
+    }
+
+    function isOptionalNumber(value) {
+      return value == null || value is number;
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
     function isValidUser(data) {
       return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'branchId', 'createdAt']) &&
              data.uid is string && data.email is string && isValidEmail(data.email) &&
-             data.role in ['admin', 'manager', 'staff', 'driver'];
+             data.role in ['admin', 'manager', 'staff', 'driver', 'customer'];
     }
 
     function isValidVehicle(data) {
-      return hasOnlyAllowedFields(['id', 'make', 'model', 'year', 'plate', 'type', 'transmission', 'status', 'branchId', 'dailyRate', 'lastService', 'photoUrls']) &&
-             data.make is string && data.model is string && data.status in ['available', 'rented', 'maintenance', 'incident'];
+      return hasOnlyAllowedFields(['id', 'make', 'model', 'year', 'plate', 'type', 'transmission', 'status', 'branchId', 'dailyRate', 'lastService', 'photoUrls', 'view360']) &&
+             data.make is string && data.model is string &&
+             data.status in ['available', 'available soon', 'rented', 'maintenance', 'incident'];
+    }
+
+    function isValidReservation(data) {
+      return hasOnlyAllowedFields([
+               'id',
+               'customerId',
+               'customerName',
+               'vehicleId',
+               'vehicleName',
+               'pickupDate',
+               'dropoffDate',
+               'pickupBranchId',
+               'dropoffBranchId',
+               'status',
+               'totalPrice',
+               'notes',
+               'createdAt'
+             ]) &&
+             hasRequiredFields(['customerId', 'vehicleId', 'pickupDate', 'dropoffDate', 'status']) &&
+             isNonEmptyString(data.customerId) &&
+             isNonEmptyString(data.vehicleId) &&
+             isNonEmptyString(data.pickupDate) &&
+             isNonEmptyString(data.dropoffDate) &&
+             data.status in ['pending', 'confirmed', 'active', 'completed', 'cancelled'] &&
+             isOptionalString(data.customerName) &&
+             isOptionalString(data.vehicleName) &&
+             isOptionalString(data.pickupBranchId) &&
+             isOptionalString(data.dropoffBranchId) &&
+             isOptionalString(data.notes) &&
+             isOptionalString(data.createdAt) &&
+             isOptionalNumber(data.totalPrice);
+    }
+
+    function isValidTask(data) {
+      return hasOnlyAllowedFields([
+               'id',
+               'title',
+               'description',
+               'assignedTo',
+               'status',
+               'dueDate',
+               'relatedId',
+               'priority',
+               'createdAt'
+             ]) &&
+             hasRequiredFields(['title', 'status', 'priority']) &&
+             isNonEmptyString(data.title) &&
+             data.status in ['pending', 'in-progress', 'completed'] &&
+             data.priority in ['low', 'medium', 'high'] &&
+             isOptionalString(data.description) &&
+             isOptionalString(data.assignedTo) &&
+             isOptionalString(data.dueDate) &&
+             isOptionalString(data.relatedId) &&
+             isOptionalString(data.createdAt);
+    }
+
+    function isValidInspection(data) {
+      return hasOnlyAllowedFields([
+               'id',
+               'taskId',
+               'vehicleId',
+               'inspectorId',
+               'type',
+               'tirePressure',
+               'fluidLevels',
+               'interiorCleanliness',
+               'existingDamage',
+               'createdAt'
+             ]) &&
+             hasRequiredFields(['vehicleId', 'inspectorId', 'type', 'createdAt']) &&
+             isNonEmptyString(data.vehicleId) &&
+             isNonEmptyString(data.inspectorId) &&
+             data.type in ['pre-rental', 'post-rental'] &&
+             isOptionalString(data.taskId) &&
+             isOptionalString(data.tirePressure) &&
+             isOptionalString(data.fluidLevels) &&
+             isOptionalString(data.interiorCleanliness) &&
+             isOptionalString(data.existingDamage) &&
+             isNonEmptyString(data.createdAt);
     }
 
     // ===============================================================
@@ -99,7 +190,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isStaff();
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
-                    (isAdmin() || (isOwner(userId) && request.resource.data.role == 'driver'));
+                    (isAdmin() || (isOwner(userId) && request.resource.data.role == 'customer'));
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
                     (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
       allow delete: if isAdmin();
@@ -114,10 +205,18 @@ service cloud.firestore {
     // Reservations: Owner or Staff can read/write
     match /reservations/{resId} {
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
-      allow create: if isAuthenticated() && 
-                    hasRequiredFields(['customerId', 'vehicleId', 'pickupDate', 'dropoffDate', 'status']) &&
+      allow create: if isAuthenticated() &&
+                    isValidReservation(request.resource.data) &&
                     request.resource.data.customerId == request.auth.uid;
-      allow update: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
+      allow update: if isAuthenticated() &&
+                    isValidReservation(request.resource.data) &&
+                    (
+                      isStaff() ||
+                      (
+                        request.auth.uid == resource.data.customerId &&
+                        request.resource.data.customerId == resource.data.customerId
+                      )
+                    );
       allow delete: if isAdmin();
     }
 
@@ -129,7 +228,7 @@ service cloud.firestore {
     // Tasks: Assigned user or staff can access
     match /tasks/{taskId} {
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.assignedTo || isStaff());
-      allow write: if isStaff();
+      allow write: if isStaff() && isValidTask(request.resource.data);
     }
 
     // Branches: Public info
@@ -163,7 +262,61 @@ service cloud.firestore {
 
     // Inspections: Only staff can read/write
     match /inspections/{inspectionId} {
-      allow read, write: if isStaff();
+      allow read: if isStaff();
+      allow create: if isStaff() &&
+                    isValidInspection(request.resource.data) &&
+                    request.resource.data.inspectorId == request.auth.uid;
+      allow update: if isStaff() && isValidInspection(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Conversations: Users can only access their own conversations
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid &&
+                    request.resource.data.uid == resource.data.uid;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
+    // Rate limits: Server-managed only (Cloud Functions admin SDK bypasses rules)
+    match /rate_limits/{docId} {
+      allow read, write: if false;
+    }
+
+    // Booking rules: Admin-managed, staff-readable
+    match /booking_rules/{ruleId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Payments: Server-managed, owner can read
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.customerId || isStaff());
+      allow write: if false;
+    }
+
+    // Email notification queue: Server-managed only
+    match /email_queue/{docId} {
+      allow read, write: if false;
+    }
+
+    // GDPR requests: Server-managed, owner can read own
+    match /gdpr_requests/{requestId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.uid;
+      allow write: if false;
+    }
+
+    // Usage: Server-managed only
+    match /usage/{docId} {
+      allow read: if isAuthenticated() && docId.matches(request.auth.uid + '_.*');
+      allow write: if false;
+    }
+
+    // Audit log: Immutable, server-managed only
+    match /audit_log/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

@@ -1,127 +1,95 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GeminiService, MODELS, PERSONAS } from '../services/gemini';
-import { GoogleGenAI } from '@google/genai';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { GeminiService, MODELS, PERSONAS } from '@/services/gemini';
 
-vi.mock('@google/genai', () => {
+const { callableMocks, httpsCallableMock } = vi.hoisted(() => {
+  const mocks = {
+    chatWithGemini: vi.fn(),
+    transcribeAudio: vi.fn(),
+    textToSpeech: vi.fn(),
+    analyzeDamageImage: vi.fn(),
+  };
+
   return {
-    GoogleGenAI: vi.fn().mockImplementation(function() {
-      return {
-        models: {
-          generateContent: vi.fn().mockResolvedValue({
-            text: 'Mocked response',
-            candidates: [
-              {
-                content: {
-                  parts: [
-                    {
-                      inlineData: {
-                        data: 'mocked-audio-data',
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          }),
-        },
-      };
-    }),
-    ThinkingLevel: { HIGH: 'HIGH' },
-    Modality: { AUDIO: 'AUDIO' },
+    callableMocks: mocks,
+    httpsCallableMock: vi.fn((_functions: unknown, name: keyof typeof mocks) => mocks[name]),
   };
 });
+
+vi.mock('firebase/functions', () => ({
+  httpsCallable: httpsCallableMock,
+}));
+
+vi.mock('@/firebase', () => ({
+  functions: {},
+}));
 
 describe('GeminiService', () => {
   let geminiService: GeminiService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    callableMocks.chatWithGemini.mockResolvedValue({
+      data: { text: 'Mocked response', groundingMetadata: { groundingChunks: [] } },
+    });
+    callableMocks.transcribeAudio.mockResolvedValue({
+      data: { text: 'Mocked transcription' },
+    });
+    callableMocks.textToSpeech.mockResolvedValue({
+      data: { audioBase64: 'mocked-audio-data' },
+    });
+    callableMocks.analyzeDamageImage.mockResolvedValue({
+      data: {
+        assessment: {
+          severity: 'medium',
+          estimatedRepairCost: 450,
+          description: 'Front bumper scratch',
+          aiAssessment: 'Cosmetic repair recommended.',
+        },
+      },
+    });
+
     geminiService = new GeminiService();
   });
 
-  it('should initialize with GoogleGenAI', () => {
-    expect(GoogleGenAI).toHaveBeenCalled();
+  it('exports the expected model and persona metadata', () => {
+    expect(MODELS.FLASH).toBe('gemini-3-flash-preview');
+    expect(PERSONAS.rentalAgent).toContain('car rental concierge');
   });
 
-  it('should call chat with default config', async () => {
+  it('calls the chat callable with messages and config', async () => {
     const messages = [{ role: 'user' as const, content: 'Hello' }];
-    const response = await geminiService.chat(messages, {});
+    const response = await geminiService.chat(messages, { persona: 'coder', useSearch: true });
 
-    expect(geminiService.ai.models.generateContent).toHaveBeenCalledWith({
-      model: MODELS.FLASH,
-      contents: [{ role: 'user', parts: [{ text: 'Hello' }] }],
-      config: {
-        systemInstruction: expect.stringContaining(PERSONAS.general),
-        tools: undefined,
-        thinkingConfig: undefined,
-      },
+    expect(httpsCallableMock).toHaveBeenCalledWith({}, 'chatWithGemini');
+    expect(callableMocks.chatWithGemini).toHaveBeenCalledWith({
+      messages,
+      config: { persona: 'coder', useSearch: true },
     });
     expect(response.text).toBe('Mocked response');
   });
 
-  it('should call chat with specific persona and tools', async () => {
-    const messages = [{ role: 'user' as const, content: 'Hello' }];
-    await geminiService.chat(messages, {
-      persona: 'coder',
-      useSearch: true,
-      useMaps: true,
-      highThinking: true,
-    });
-
-    expect(geminiService.ai.models.generateContent).toHaveBeenCalledWith({
-      model: MODELS.PRO,
-      contents: [{ role: 'user', parts: [{ text: 'Hello' }] }],
-      config: {
-        systemInstruction: expect.stringContaining(PERSONAS.coder),
-        tools: [{ googleSearch: {} }, { googleMaps: {} }],
-        thinkingConfig: { thinkingLevel: 'HIGH' },
-      },
-    });
-  });
-
-  it('should handle messages with images', async () => {
-    const messages = [{ role: 'user' as const, content: 'What is this?', image: 'data:image/jpeg;base64,mocked-base64' }];
-    await geminiService.chat(messages, {});
-
-    expect(geminiService.ai.models.generateContent).toHaveBeenCalledWith({
-      model: MODELS.FLASH,
-      contents: [{ role: 'user', parts: [{ text: 'What is this?' }, { inlineData: { mimeType: 'image/jpeg', data: 'mocked-base64' } }] }],
-      config: expect.any(Object),
-    });
-  });
-
-  it('should transcribe audio', async () => {
+  it('calls the transcription callable', async () => {
     const response = await geminiService.transcribe('mocked-audio-base64');
-    
-    expect(geminiService.ai.models.generateContent).toHaveBeenCalledWith({
-      model: MODELS.FLASH,
-      contents: [
-        {
-          parts: [
-            { text: 'Transcribe this audio exactly as spoken.' },
-            { inlineData: { mimeType: 'audio/wav', data: 'mocked-audio-base64' } },
-          ],
-        },
-      ],
-    });
-    expect(response).toBe('Mocked response');
+
+    expect(httpsCallableMock).toHaveBeenCalledWith({}, 'transcribeAudio');
+    expect(callableMocks.transcribeAudio).toHaveBeenCalledWith({ audioBase64: 'mocked-audio-base64' });
+    expect(response).toBe('Mocked transcription');
   });
 
-  it('should convert text to speech', async () => {
+  it('calls the text-to-speech callable', async () => {
     const response = await geminiService.textToSpeech('Hello world');
-    
-    expect(geminiService.ai.models.generateContent).toHaveBeenCalledWith({
-      model: MODELS.TTS,
-      contents: [{ parts: [{ text: 'Hello world' }] }],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
-        },
-      },
-    });
+
+    expect(httpsCallableMock).toHaveBeenCalledWith({}, 'textToSpeech');
+    expect(callableMocks.textToSpeech).toHaveBeenCalledWith({ text: 'Hello world' });
     expect(response).toBe('mocked-audio-data');
+  });
+
+  it('calls the damage analysis callable and strips the data URL prefix', async () => {
+    const response = await geminiService.analyzeDamage('data:image/jpeg;base64,mocked-base64');
+
+    expect(httpsCallableMock).toHaveBeenCalledWith({}, 'analyzeDamageImage');
+    expect(callableMocks.analyzeDamageImage).toHaveBeenCalledWith({ imageBase64: 'mocked-base64' });
+    expect(response?.severity).toBe('medium');
   });
 });

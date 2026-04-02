@@ -8,7 +8,7 @@
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "manager", "staff", "driver"] },
+        "role": { "type": "string", "enum": ["admin", "manager", "staff", "driver", "customer"] },
         "branchId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -26,7 +26,7 @@
         "plate": { "type": "string" },
         "type": { "type": "string", "enum": ["sedan", "suv", "truck", "luxury", "convertible"] },
         "transmission": { "type": "string", "enum": ["automatic", "manual"] },
-        "status": { "type": "string", "enum": ["available", "rented", "maintenance", "incident"] },
+        "status": { "type": "string", "enum": ["available", "available soon", "rented", "maintenance", "incident"] },
         "branchId": { "type": "string" },
         "dailyRate": { "type": "number" },
         "lastService": { "type": "string", "format": "date" },
@@ -79,11 +79,12 @@
         "title": { "type": "string" },
         "description": { "type": "string" },
         "assignedTo": { "type": "string" },
-        "status": { "type": "string", "enum": ["todo", "in-progress", "done"] },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed"] },
         "dueDate": { "type": "string", "format": "date-time" },
-        "relatedId": { "type": "string" }
+        "relatedId": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] }
       },
-      "required": ["title", "status"]
+      "required": ["title", "status", "priority"]
     },
     "MaintenanceRecord": {
       "title": "Maintenance Record",
@@ -113,7 +114,8 @@
         "estimatedRepairCost": { "type": "number" },
         "photoUrls": { "type": "array", "items": { "type": "string" } },
         "aiAssessment": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "resolved"] }
       },
       "required": ["vehicleId", "severity", "createdAt"]
     },

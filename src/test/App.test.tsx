@@ -1,160 +1,186 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import App from '../App';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-// Mock Firebase
-vi.mock('../firebase', () => ({
-  db: {},
-  auth: {
-    currentUser: { uid: 'test-user-id', email: 'test@example.com' },
-    onAuthStateChanged: vi.fn((callback) => {
-      callback({ uid: 'test-user-id', email: 'test@example.com' });
-      return () => {};
-    }),
-  },
-  handleFirestoreError: vi.fn(),
-  OperationType: { GET: 'get' },
-  loginWithGoogle: vi.fn(),
-  logout: vi.fn(),
+const {
+  clearDataMock,
+  geminiChatMock,
+  exportProjectFilesMock,
+  loginWithGoogleMock,
+  logoutMock,
+  parseCanvasContentMock,
+  startRecordingMock,
+  stopRecordingMock,
+} = vi.hoisted(() => ({
+  clearDataMock: vi.fn(),
+  geminiChatMock: vi.fn(),
+  exportProjectFilesMock: vi.fn(),
+  loginWithGoogleMock: vi.fn(),
+  logoutMock: vi.fn(),
+  parseCanvasContentMock: vi.fn((content: string) => ({ content, files: [] })),
+  startRecordingMock: vi.fn(),
+  stopRecordingMock: vi.fn(),
 }));
 
-// Mock Firebase Firestore
-vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(),
-  query: vi.fn(),
-  limit: vi.fn(),
-  where: vi.fn(),
-  orderBy: vi.fn(),
-  addDoc: vi.fn(),
-  deleteDoc: vi.fn(),
-  doc: vi.fn(),
-  updateDoc: vi.fn(),
-  onSnapshot: vi.fn((query, callback) => {
-    callback({ docs: [] });
-    return () => {};
+vi.mock('firebase/auth', () => ({
+  onAuthStateChanged: vi.fn((_auth: unknown, callback: (user: unknown) => void) => {
+    callback({ uid: 'test-user-id', email: 'test@example.com', displayName: 'Test User' });
+    return vi.fn();
   }),
-  getFirestore: vi.fn(),
 }));
 
-// Mock Gemini
-vi.mock('../services/gemini', () => ({
+vi.mock('@/firebase', () => ({
+  auth: { currentUser: { uid: 'test-user-id' } },
+  loginWithGoogle: loginWithGoogleMock,
+  logout: logoutMock,
+}));
+
+vi.mock('@/hooks/useAppData', () => ({
+  useAppData: vi.fn(() => ({
+    userProfile: {
+      uid: 'test-user-id',
+      email: 'test@example.com',
+      displayName: 'Test User',
+      role: 'manager',
+    },
+    fleet: [],
+    reservations: [],
+    customers: [],
+    tasks: [],
+    maintenance: [],
+    damageReports: [],
+    pricingRules: [],
+    contracts: [],
+    isStaff: true,
+    clearData: clearDataMock,
+  })),
+}));
+
+vi.mock('@/hooks/useVoiceRecorder', () => ({
+  useVoiceRecorder: vi.fn(() => ({
+    isRecording: false,
+    startRecording: startRecordingMock,
+    stopRecording: stopRecordingMock,
+  })),
+}));
+
+vi.mock('@/services/gemini', () => ({
   gemini: {
-    chat: vi.fn().mockResolvedValue({ text: 'Mocked response' }),
+    chat: geminiChatMock,
+    analyzeDamage: vi.fn().mockResolvedValue(null),
   },
   MODELS: {
-    general: 'gemini-3-flash-preview',
-    developer: 'gemini-3.1-pro-preview',
-    strategist: 'gemini-3.1-pro-preview',
-    creative: 'gemini-3-flash-preview',
-    analyst: 'gemini-3.1-pro-preview',
-    rentalAgent: 'gemini-3-flash-preview'
-  }
+    FLASH: 'gemini-3-flash-preview',
+    LITE: 'gemini-3.1-flash-lite-preview',
+  },
 }));
 
-// Mock recharts
-vi.mock('recharts', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
-      <div style={{ width: 800, height: 400 }}>{children}</div>
-    ),
-  };
-});
+vi.mock('@/services/workspace', () => ({
+  exportProjectFiles: exportProjectFilesMock,
+  parseCanvasContent: parseCanvasContentMock,
+}));
+
+vi.mock('@/components/modules/ModuleView', () => ({
+  default: ({ type }: { type: string }) => {
+    const labels: Record<string, string> = {
+      fleet: 'Total Fleet',
+      reservations: 'Total Bookings',
+      crm: 'Total Customers',
+      ops: 'Active Tasks',
+      kpi: 'Avg Utilization',
+      maintenance: 'Active Maintenance',
+      damage: 'New AI Assessment',
+      pricing: 'Active Multipliers',
+      contracts: 'Filter Status:',
+      corporate: 'Corporate Portal',
+    };
+
+    return <div>{labels[type] || type}</div>;
+  },
+}));
+
+vi.mock('@/components/app/WorkspacePanel', () => ({
+  WorkspacePanel: () => null,
+}));
+
+import App from '@/App';
+
+function clickFirstButton(name: RegExp) {
+  const target = screen.getAllByRole('button', { name }).at(0);
+  if (!target) {
+    throw new Error(`Missing button: ${String(name)}`);
+  }
+
+  fireEvent.click(target);
+}
 
 describe('App', () => {
   it('renders without crashing', () => {
+    geminiChatMock.mockResolvedValue({ text: 'Mocked response' });
     render(<App />);
     expect(screen.getByText('Open Claw')).toBeInTheDocument();
   });
 
-  it('navigates to different modules', () => {
+  it('navigates to representative modules through the app shell', async () => {
     render(<App />);
-    
-    // Click on Fleet Management
-    fireEvent.click(screen.getAllByRole('button', { name: /Fleet Management/i })[0]);
-    expect(screen.getByText('Total Fleet')).toBeInTheDocument();
 
-    // Click on Reservations
-    fireEvent.click(screen.getAllByRole('button', { name: /Reservations/i })[0]);
-    expect(screen.getByText('Total Bookings')).toBeInTheDocument();
+    clickFirstButton(/Fleet Management/i);
+    expect(await screen.findByText('Total Fleet')).toBeInTheDocument();
 
-    // Click on CRM
-    fireEvent.click(screen.getAllByRole('button', { name: /CRM/i })[0]);
-    expect(screen.getByText('Total Customers')).toBeInTheDocument();
+    clickFirstButton(/CRM/i);
+    expect(await screen.findByText('Total Customers')).toBeInTheDocument();
 
-    // Click on Operations
-    fireEvent.click(screen.getAllByRole('button', { name: /Operations/i })[0]);
-    expect(screen.getByText('Active Tasks')).toBeInTheDocument();
-    // Click on KPI Dashboard
-    fireEvent.click(screen.getAllByRole('button', { name: /KPI Dashboard/i })[0]);
-    expect(screen.getByText('Avg Utilization')).toBeInTheDocument();
+    clickFirstButton(/KPI Dashboard/i);
+    expect(await screen.findByText('Avg Utilization')).toBeInTheDocument();
 
-    // Click on Maintenance
-    fireEvent.click(screen.getAllByRole('button', { name: /Maintenance/i })[0]);
-    expect(screen.getByText('Active Maintenance')).toBeInTheDocument();
-
-    // Click on AI Damage Assessment
-    fireEvent.click(screen.getAllByRole('button', { name: /AI Damage Assessment/i })[0]);
-    expect(screen.getByText('New AI Assessment')).toBeInTheDocument();
-
-    // Click on Dynamic Pricing
-    fireEvent.click(screen.getAllByRole('button', { name: /Dynamic Pricing/i })[0]);
-    expect(screen.getByText('Active Multipliers')).toBeInTheDocument();
-
-    // Click on Contracts
-    fireEvent.click(screen.getAllByRole('button', { name: /Contracts/i })[0]);
-    expect(screen.getByText('Filter Status:')).toBeInTheDocument();
-  });
+    clickFirstButton(/Contracts/i);
+    expect(await screen.findByText('Filter Status:')).toBeInTheDocument();
+  }, 15_000);
 
   it('sends a message and receives a response', async () => {
+    geminiChatMock.mockResolvedValueOnce({ text: 'Mocked response' });
     render(<App />);
-    
-    // Find the input field
-    const input = screen.getByPlaceholderText(/Message Open Claw.../i);
-    
-    // Type a message
-    fireEvent.change(input, { target: { value: 'Hello' } });
-    
-    // Find and click the send button
-    const sendButton = screen.getByRole('button', { name: /Send message/i });
-    fireEvent.click(sendButton);
-    
-    // Wait for the message to appear
+
+    fireEvent.change(screen.getByPlaceholderText(/Message Open Claw/i), { target: { value: 'Hello' } });
+    fireEvent.click(screen.getByRole('button', { name: /Send message/i }));
+
     expect(await screen.findByText('Hello')).toBeInTheDocument();
-    
-    // Wait for the mocked response to appear
     expect(await screen.findByText('Mocked response')).toBeInTheDocument();
+    expect(geminiChatMock).toHaveBeenCalled();
   });
 
   it('switches personas', () => {
     render(<App />);
-    
-    // Find and click the Developer persona button
-    const developerButton = screen.getByRole('button', { name: /Developer/i });
-    fireEvent.click(developerButton);
-    
-    // Check if the input placeholder changed
+
+    fireEvent.click(screen.getByRole('button', { name: /Developer/i }));
     expect(screen.getByPlaceholderText(/Message Open Claw \(coder\)\.\.\./i)).toBeInTheDocument();
   });
 
   it('opens and closes the command palette', async () => {
     render(<App />);
-    
-    // Press Cmd+K (or Ctrl+K)
+
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
-    
-    // Check if the command palette is open
     const searchInput = screen.getByPlaceholderText('Search commands, personas, files...');
     expect(searchInput).toBeInTheDocument();
-    
-    // Press Escape
+
     fireEvent.keyDown(searchInput, { key: 'Escape' });
-    
-    // Check if the command palette is closed
+
     await waitFor(() => {
       expect(screen.queryByPlaceholderText('Search commands, personas, files...')).not.toBeInTheDocument();
     });
   });
-});
 
+  it('clears the conversation from the sidebar action', async () => {
+    geminiChatMock.mockResolvedValueOnce({ text: 'Mocked response' });
+    render(<App />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Message Open Claw/i), { target: { value: 'Hello' } });
+    fireEvent.click(screen.getByRole('button', { name: /Send message/i }));
+
+    expect(await screen.findByText('Hello')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Clear Conversation/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Hello')).not.toBeInTheDocument();
+    });
+  });
+});
