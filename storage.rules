@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Deny all access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Vehicle photos: authenticated users can read; verified users can upload images ≤ 10 MB
+    match /vehicles/{vehicleId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && fileName.size() < 128;
+    }
+
+    // Damage report photos: authenticated users can read; verified users can upload images ≤ 10 MB
+    match /damage/{reportId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && fileName.size() < 128;
+    }
+
+    // Contract documents: authenticated users can read; verified users can upload PDFs ≤ 20 MB
+    match /contracts/{contractId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf')
+        && fileName.size() < 128;
+    }
+  }
+}

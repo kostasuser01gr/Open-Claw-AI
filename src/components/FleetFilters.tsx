@@ -1,18 +1,20 @@
-import React from 'react';
+import type { FleetFilterOptions } from '@/types/domain';
 
-export interface FleetFilterOptions {
-  carType: string;
-  transmission: string;
-  availability: string;
-  maxPrice: number;
-}
-
-export function FleetFilters({ filters, setFilters }: { filters: FleetFilterOptions, setFilters: (f: FleetFilterOptions) => void }) {
+export function FleetFilters({
+  filters,
+  setFilters,
+}: {
+  filters: FleetFilterOptions;
+  setFilters: (f: FleetFilterOptions) => void;
+}) {
   return (
     <>
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Car Type</label>
-        <select 
+        <label htmlFor="fleet-filter-car-type" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          Car Type
+        </label>
+        <select
+          id="fleet-filter-car-type"
           value={filters.carType}
           onChange={(e) => setFilters({ ...filters, carType: e.target.value })}
           className="bg-bg border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500/50 text-text"
@@ -33,8 +35,11 @@ export function FleetFilters({ filters, setFilters }: { filters: FleetFilterOpti
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Transmission</label>
-        <select 
+        <label htmlFor="fleet-filter-transmission" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          Transmission
+        </label>
+        <select
+          id="fleet-filter-transmission"
           value={filters.transmission}
           onChange={(e) => setFilters({ ...filters, transmission: e.target.value })}
           className="bg-bg border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500/50 text-text"
@@ -48,8 +53,11 @@ export function FleetFilters({ filters, setFilters }: { filters: FleetFilterOpti
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Availability</label>
-        <select 
+        <label htmlFor="fleet-filter-availability" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          Availability
+        </label>
+        <select
+          id="fleet-filter-availability"
           value={filters.availability}
           onChange={(e) => setFilters({ ...filters, availability: e.target.value })}
           className="bg-bg border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500/50 text-text"
@@ -63,12 +71,15 @@ export function FleetFilters({ filters, setFilters }: { filters: FleetFilterOpti
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Max Price ($/day)</label>
+        <label htmlFor="fleet-filter-max-price" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          Max Price ($/day)
+        </label>
         <div className="flex items-center gap-3">
-          <input 
-            type="range" 
-            min="20" 
-            max="2000" 
+          <input
+            id="fleet-filter-max-price"
+            type="range"
+            min="20"
+            max="2000"
             step="10"
             value={filters.maxPrice}
             onChange={(e) => setFilters({ ...filters, maxPrice: parseInt(e.target.value) })}
