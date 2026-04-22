@@ -1,13 +1,76 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, serverTimestamp, Timestamp } from 'firebase/firestore';
+import {
+  type Firestore,
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  persistentSingleTabManager,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import firebaseConfig from '../firebase-applet-config.json';
 import { appEnv } from './config/env';
 
+const firebaseConfig = {
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DB_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || '',
+};
+
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+/**
+ * Initialize Firestore with IndexedDB persistence. Prefer multi-tab cache when supported,
+ * fall back to single-tab cache, and finally to the in-memory cache. Never throws — the
+ * app must remain functional even if persistence fails (private-browsing, storage quota,
+ * browser conflict, etc.).
+ */
+function initializeFirestoreWithOfflineCache(firebaseApp: FirebaseApp): Firestore {
+  const databaseId = firebaseConfig.firestoreDatabaseId;
+  try {
+    return initializeFirestore(
+      firebaseApp,
+      {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      },
+      databaseId,
+    );
+  } catch (multiTabError) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        '[firebase] Multi-tab persistent cache unavailable; falling back to single-tab.',
+        multiTabError,
+      );
+    }
+    try {
+      return initializeFirestore(
+        firebaseApp,
+        {
+          localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
+        },
+        databaseId,
+      );
+    } catch (singleTabError) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[firebase] Persistent cache unavailable; using in-memory cache.',
+          singleTabError,
+        );
+      }
+      return getFirestore(firebaseApp, databaseId);
+    }
+  }
+}
+
+export const db: Firestore = initializeFirestoreWithOfflineCache(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, appEnv.functionsRegion);
