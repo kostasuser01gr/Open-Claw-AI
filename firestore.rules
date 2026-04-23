@@ -318,5 +318,10 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+
+    // Fall-through: explicitly DENY anything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
