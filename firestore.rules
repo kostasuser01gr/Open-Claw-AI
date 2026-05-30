@@ -149,20 +149,22 @@ service cloud.firestore {
                'description',
                'assignedTo',
                'status',
-               'dueDate',
-               'relatedId',
-               'priority',
-               'createdAt'
+	               'dueDate',
+	               'relatedId',
+	               'vehicleId',
+	               'priority',
+	               'createdAt'
              ]) &&
              hasRequiredFields(['title', 'status', 'priority']) &&
              isNonEmptyString(data.title) &&
              data.status in ['pending', 'in-progress', 'completed'] &&
              data.priority in ['low', 'medium', 'high'] &&
              optionalString(data, 'description') &&
-             optionalString(data, 'assignedTo') &&
-             optionalString(data, 'dueDate') &&
-             optionalString(data, 'relatedId') &&
-             optionalString(data, 'createdAt');
+	             optionalString(data, 'assignedTo') &&
+	             optionalString(data, 'dueDate') &&
+	             optionalString(data, 'relatedId') &&
+	             optionalString(data, 'vehicleId') &&
+	             optionalString(data, 'createdAt');
     }
 
     function isValidInspection(data) {
