@@ -15,13 +15,13 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { appEnv } from './config/env';
 
 const firebaseConfig = {
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'demo-open-claw',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:000000000000:web:0000000000000000000000',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDUM',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'demo-open-claw.firebaseapp.com',
   firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DB_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'demo-open-claw.appspot.com',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000',
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || '',
 };
 

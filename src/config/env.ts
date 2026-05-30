@@ -20,4 +20,5 @@ export const appEnv = {
   useFunctionsEmulator: parseBoolean(import.meta.env.VITE_USE_FIREBASE_EMULATOR),
   functionsHost: import.meta.env.VITE_FIREBASE_FUNCTIONS_HOST || DEFAULT_FUNCTIONS_HOST,
   functionsPort: parseNumber(import.meta.env.VITE_FIREBASE_FUNCTIONS_PORT, DEFAULT_FUNCTIONS_PORT),
+  workerBaseUrl: (import.meta.env.VITE_WORKER_BASE_URL || '').replace(/\/$/, ''),
 } as const;

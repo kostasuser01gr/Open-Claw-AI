@@ -58,6 +58,14 @@ export interface GroundingMetadata {
   groundingChunks?: GroundingChunk[];
 }
 
+export interface ToolCallRecord {
+  name: string;
+  ok?: boolean;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'model';
   content: string;

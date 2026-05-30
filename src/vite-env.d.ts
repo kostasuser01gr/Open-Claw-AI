@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_USE_FIREBASE_EMULATOR?: string;
   readonly VITE_FIREBASE_FUNCTIONS_HOST?: string;
   readonly VITE_FIREBASE_FUNCTIONS_PORT?: string;
+  readonly VITE_WORKER_BASE_URL?: string;
 }
 
 interface ImportMeta {
