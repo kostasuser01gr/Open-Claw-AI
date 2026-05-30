@@ -88,6 +88,14 @@ service cloud.firestore {
       return value == null || value is number;
     }
 
+    function optionalString(data, field) {
+      return !data.keys().hasAny([field]) || data[field] is string;
+    }
+
+    function optionalNumber(data, field) {
+      return !data.keys().hasAny([field]) || data[field] is number;
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
@@ -125,13 +133,13 @@ service cloud.firestore {
              isNonEmptyString(data.pickupDate) &&
              isNonEmptyString(data.dropoffDate) &&
              data.status in ['pending', 'confirmed', 'active', 'completed', 'cancelled'] &&
-             isOptionalString(data.customerName) &&
-             isOptionalString(data.vehicleName) &&
-             isOptionalString(data.pickupBranchId) &&
-             isOptionalString(data.dropoffBranchId) &&
-             isOptionalString(data.notes) &&
-             isOptionalString(data.createdAt) &&
-             isOptionalNumber(data.totalPrice);
+             optionalString(data, 'customerName') &&
+             optionalString(data, 'vehicleName') &&
+             optionalString(data, 'pickupBranchId') &&
+             optionalString(data, 'dropoffBranchId') &&
+             optionalString(data, 'notes') &&
+             optionalString(data, 'createdAt') &&
+             optionalNumber(data, 'totalPrice');
     }
 
     function isValidTask(data) {
@@ -150,11 +158,11 @@ service cloud.firestore {
              isNonEmptyString(data.title) &&
              data.status in ['pending', 'in-progress', 'completed'] &&
              data.priority in ['low', 'medium', 'high'] &&
-             isOptionalString(data.description) &&
-             isOptionalString(data.assignedTo) &&
-             isOptionalString(data.dueDate) &&
-             isOptionalString(data.relatedId) &&
-             isOptionalString(data.createdAt);
+             optionalString(data, 'description') &&
+             optionalString(data, 'assignedTo') &&
+             optionalString(data, 'dueDate') &&
+             optionalString(data, 'relatedId') &&
+             optionalString(data, 'createdAt');
     }
 
     function isValidInspection(data) {
@@ -174,11 +182,11 @@ service cloud.firestore {
              isNonEmptyString(data.vehicleId) &&
              isNonEmptyString(data.inspectorId) &&
              data.type in ['pre-rental', 'post-rental'] &&
-             isOptionalString(data.taskId) &&
-             isOptionalString(data.tirePressure) &&
-             isOptionalString(data.fluidLevels) &&
-             isOptionalString(data.interiorCleanliness) &&
-             isOptionalString(data.existingDamage) &&
+             optionalString(data, 'taskId') &&
+             optionalString(data, 'tirePressure') &&
+             optionalString(data, 'fluidLevels') &&
+             optionalString(data, 'interiorCleanliness') &&
+             optionalString(data, 'existingDamage') &&
              isNonEmptyString(data.createdAt);
     }
 
