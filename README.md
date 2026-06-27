@@ -90,3 +90,19 @@ GitHub Actions also installs Java and runs `npm run test:rules`, so Firestore au
 - [Architecture](./ARCHITECTURE.md)
 - [Operations Runbook](./OPERATIONS.md)
 - [Upgrade Log](./UPGRADE_LOG.md)
+
+---
+
+## Author
+
+**Konstantinos Foskolakis**
+Full-stack engineer — Heraklion, Crete, Greece
+[github.com/kostasuser01gr](https://github.com/kostasuser01gr)
+
+---
+
+## Portfolio Positioning
+
+This project demonstrates full-stack Firebase architecture with security as a first-class concern: Gemini API calls proxied through authenticated Firebase HTTPS callables to keep credentials server-side, dynamic AI actions whitelisted and typed to prevent arbitrary Firestore writes, and Firestore rules enforcing role-aware data access at the database layer. The ARCHITECTURE.md and OPERATIONS.md document the system design and operational runbook. The Vitest suite covers Firestore rules regression with emulator support. This reflects platform thinking: security boundaries, data modeling, AI integration, and operational documentation as a complete package.
+
+*Built as a portfolio-grade AI-powered car rental SaaS console. Estimated implementation effort for the current public version: 5–8 focused development days.*
